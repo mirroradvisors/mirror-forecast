@@ -5,7 +5,9 @@ import { P, MO, fmt, sm } from "./data.js";
 // and only commits to the parent on blur / Enter. Prevents intermediate
 // values (empty string, 0, NaN) from triggering parent re-renders that
 // could filter the row out mid-edit.
-export function EditableNumber({ value, onCommit, style, placeholder, min, max }) {
+// `live`: commit each keystroke that parses to a valid number (so dependent
+// computations update as you type); blur still normalizes empty → 0.
+export function EditableNumber({ value, onCommit, style, placeholder, min, max, live = false }) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
   const [focused, setFocused] = useState(false);
   useEffect(() => { if (!focused) setLocal(value == null ? "" : String(value)); }, [value, focused]);
@@ -23,7 +25,11 @@ export function EditableNumber({ value, onCommit, style, placeholder, min, max }
       placeholder={placeholder}
       min={min}
       max={max}
-      onChange={(e) => setLocal(e.target.value)}
+      onChange={(e) => {
+        const v = e.target.value;
+        setLocal(v);
+        if (live) { const t = v.trim(); if (t !== "") { const n = +t; if (!isNaN(n) && n !== value) onCommit(n); } }
+      }}
       onFocus={() => setFocused(true)}
       onBlur={() => { setFocused(false); commit(); }}
       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
