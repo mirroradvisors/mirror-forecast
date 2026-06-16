@@ -200,32 +200,49 @@ export function compute(d) {
     if (i < sm || i > em) return 0;
     return p.co;
   };
-  const us = idxRange(N).map(i => {
-    let t = (d.et[i] || 0) + (d.af[i] || 0);
-    at.filter(p => p.ct === "US").forEach(p => {
-      if (p.nm === "Paul") { if (i === 0) return; if (i === 1) { t -= 3917; return; } t -= tmCost(p, i); return; }
-      if (p.nm === "Sara") { t -= (i === 0 ? 824 : i === 1 ? 180 : i === 4 ? 324 : tmCost(p, i)); return; }
-      t -= tmCost(p, i);
-    });
-    return t;
-  });
-  const ph = idxRange(N).map(i => {
-    let t = 0;
-    at.filter(p => p.ct === "PH").forEach(p => {
-      if (p.nm === "Janna") { t -= (i < 2 ? 800 : tmCost(p, i)); return; }
-      t -= tmCost(p, i);
-    });
-    return t;
-  });
-  const ind = idxRange(N).map(i => {
-    let t = d.wf[i] || 0;
-    at.filter(p => p.ct === "IN").forEach(p => {
-      if (p.nm === "Soorya" && i === 0) { t -= 2000; return; }
-      t -= tmCost(p, i);
-    });
-    return t;
-  });
-  const ex = idxRange(N).map(i => us[i] + ph[i] + ind[i] + oc[i] + db[i]);
+  // Per-person monthly cost (positive), preserving the historical partial-month
+  // hardcodes for specific people in fixed early months.
+  const memberCost = (p, i) => {
+    if (p.nm === "Paul")   return i === 0 ? 0 : i === 1 ? 3917 : tmCost(p, i);
+    if (p.nm === "Sara")   return i === 0 ? 824 : i === 1 ? 180 : i === 4 ? 324 : tmCost(p, i);
+    if (p.nm === "Janna")  return i < 2 ? 800 : tmCost(p, i);
+    if (p.nm === "Soorya") return i === 0 ? 2000 : tmCost(p, i);
+    return tmCost(p, i);
+  };
+
+  // Payroll grouped by FREE-FORM location (tm[].ct). Each entry is a negative
+  // monthly vector; payrollBreakdown holds the per-member (and per-extra) lines
+  // for the expandable forecast rows. US carries employer taxes + ADP fees and
+  // India carries Wise fees — those stay tied to the "US"/"IN" location codes.
+  const payroll = {};
+  const payrollBreakdown = {};
+  const ensureLoc = (loc) => { if (!payroll[loc]) { payroll[loc] = new Array(N).fill(0); payrollBreakdown[loc] = []; } };
+  for (const p of at) {
+    const loc = p.ct || "Other";
+    ensureLoc(loc);
+    const line = new Array(N).fill(0);
+    for (let i = 0; i < N; i++) { line[i] = -memberCost(p, i); payroll[loc][i] += line[i]; }
+    payrollBreakdown[loc].push({ n: p.dp ? `${p.nm} (${p.dp})` : p.nm, v: line });
+  }
+  // Company-level location extras (added only when nonzero so empty locations
+  // aren't conjured). et/af are already negative; wf likewise.
+  const addExtra = (loc, name, vec) => {
+    if (!vec || !vec.some(v => v)) return;
+    ensureLoc(loc);
+    const line = new Array(N).fill(0);
+    for (let i = 0; i < N; i++) { line[i] = vec[i] || 0; payroll[loc][i] += line[i]; }
+    payrollBreakdown[loc].push({ n: name, v: line });
+  };
+  addExtra("US", "Emp Taxes", d.et);
+  addExtra("US", "ADP Fees", d.af);
+  addExtra("IN", "Wise Fees", d.wf);
+
+  const payrollTotal = idxRange(N).map(i => Object.values(payroll).reduce((s, a) => s + (a[i] || 0), 0));
+  // Back-compat single-location accessors (consumers migrating to `payroll`).
+  const us = payroll.US || new Array(N).fill(0);
+  const ph = payroll.PH || new Array(N).fill(0);
+  const ind = payroll.IN || new Array(N).fill(0);
+  const ex = idxRange(N).map(i => payrollTotal[i] + oc[i] + db[i]);
 
   // === Scenarios ===
   const scRv = new Array(N).fill(0);
@@ -251,6 +268,7 @@ export function compute(d) {
     rv: rvT, rvBase: rv,
     rvDerived, rvBreakdown,
     sb, oc, db, us, ph, ind,
+    payroll, payrollBreakdown, payrollTotal,
     ex: exT, exBase: ex,
     nt, bl, at, scRv, scEx,
     otMerged: rvDerived.ot,
