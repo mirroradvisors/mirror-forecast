@@ -37,6 +37,37 @@ function monthIdxFromDate(dateStr) {
 // Status gate — active or at-risk contracts contribute; churned/pipeline don't.
 const isLive = (status) => status === "active" || status === "at-risk";
 
+// Decimal runway in months, walking positive balances from `fromIdx` and
+// interpolating the fractional remainder when crossing zero — or projecting past
+// the array end on the last-3-month average burn. Rounded to 0.25. Extracted from
+// App so the Forecast editor's impact panel computes runway identically.
+export function runwayMonths(bal, fromIdx, openBal) {
+  let count = 0;
+  let i = fromIdx;
+  while (i < bal.length && bal[i] > 0) { count++; i++; }
+  if (i < bal.length) {
+    const lastPos = bal[i - 1];
+    const burn = lastPos - bal[i];
+    if (burn > 0) count += Math.min(lastPos / burn, 1);
+  } else {
+    const buffer = bal[bal.length - 1];
+    const ntDerived = bal.map((v, idx) => idx === 0 ? v - openBal : v - bal[idx - 1]);
+    const last3 = ntDerived.slice(-3);
+    const avgNet = last3.reduce((s, v) => s + v, 0) / last3.length;
+    const projectedBurn = -avgNet;
+    if (projectedBurn > 0 && buffer > 0) count += buffer / projectedBurn;
+  }
+  return Math.round(count * 4) / 4;
+}
+
+// Baseline (scenario-free) balance curve from compute() output + opening balance.
+export function baselineBalance(c, openBal) {
+  const nt = c.rvBase.map((v, i) => v + c.exBase[i]);
+  const bl = [];
+  nt.forEach((n, i) => bl.push(i === 0 ? openBal + n : bl[i - 1] + n));
+  return bl;
+}
+
 export function compute(d) {
   const N = horizonOf(d);
   // === Derive per-stream revenue from cl[] ===
