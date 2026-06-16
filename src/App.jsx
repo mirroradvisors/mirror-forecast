@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { MO, P, DC, FL, PIE_COLORS, fmt, fK, sm, getRollingWindow, getWinVal } from "./data.js";
 import { useForecastState } from "./useForecastState.js";
-import { compute, currentMonthIdx, BASE_YEAR } from "./compute.js";
+import { compute, currentMonthIdx, BASE_YEAR, runwayMonths, baselineBalance } from "./compute.js";
+import ForecastEditor from "./ForecastEditor.jsx";
 import { Card, Lbl, Bdg, NumIn, Pie, XRow, Toast, SaveBar } from "./components.jsx";
 import { useAuth } from "./AuthContext.jsx";
 import LoginPage from "./LoginPage.jsx";
@@ -16,6 +17,7 @@ export default function App() {
   const [showRecon, setShowRecon] = useState(false);
   const [arc, setArc] = useState(false); // payroll: show archived
   const [expandedLines, setExpandedLines] = useState({}); // forecast revenue stream expand state
+  const [fcEdit, setFcEdit] = useState(false); // forecast tab: edit-values mode (full-horizon editor)
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" && window.innerWidth < 768);
 
   useEffect(() => {
@@ -64,33 +66,12 @@ export default function App() {
   // Month label that stays correct past December (e.g. "Jan'27").
   const moLabel = (i) => (i < 12 ? MO[i] : `${MO[i % 12]}'${String(BASE_YEAR + Math.floor(i / 12)).slice(-2)}`);
 
-  // Decimal runway: walks positive months from cm, interpolates fractional remainder
-  // when crossing zero, or projects beyond array end using last 3 months' avg burn.
-  // Rounded to nearest 0.25.
-  const countGreen = (bal) => {
-    let count = 0;
-    let i = cm;
-    while (i < bal.length && bal[i] > 0) { count++; i++; }
-    if (i < bal.length) {
-      const lastPos = bal[i - 1];
-      const burn = lastPos - bal[i];
-      if (burn > 0) count += Math.min(lastPos / burn, 1);
-    } else {
-      const buffer = bal[bal.length - 1];
-      const ntDerived = bal.map((v, idx) => idx === 0 ? v - d.openBal : v - bal[idx - 1]);
-      const last3 = ntDerived.slice(-3);
-      const avgNet = last3.reduce((s, v) => s + v, 0) / last3.length;
-      const projectedBurn = -avgNet;
-      if (projectedBurn > 0 && buffer > 0) count += buffer / projectedBurn;
-    }
-    return Math.round(count * 4) / 4;
-  };
+  // Decimal runway from the current month (math lives in compute.js so the
+  // Forecast editor's impact panel stays identical).
+  const countGreen = (bal) => runwayMonths(bal, cm, d.openBal);
 
-  // Baseline runway (no scenarios). Iterate over actual forecast horizon length
-  // (24 after Phase D1) — MO.map would only give us 12 and silently truncate bl.
-  const blBase = [];
-  const ntBase = Array.from({ length: c.rvBase.length }, (_, i) => c.rvBase[i] + c.exBase[i]);
-  ntBase.forEach((n, i) => blBase.push(i === 0 ? d.openBal + n : blBase[i - 1] + n));
+  // Baseline runway (no scenarios) over the full horizon.
+  const blBase = baselineBalance(c, d.openBal);
   const mgBase = countGreen(blBase);
   // Forward-looking deficit: first bal<=0 from cm onward (matches RunwayChart).
   const fdFwd = (() => { for (let i = cm; i < blBase.length; i++) if (blBase[i] <= 0) return i; return -1; })();
@@ -221,7 +202,8 @@ export default function App() {
 
       {/* ===================== FORECAST ===================== */}
       {tab==="forecast"&&(<>
-        <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:16 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+          {!isViewer ? <button onClick={()=>setFcEdit(v=>!v)} style={{ background:fcEdit?P.b:"transparent",color:fcEdit?"#fff":P.tm,border:`1px solid ${fcEdit?P.b:P.bd}`,borderRadius:6,padding:"8px 14px",fontFamily:"'DM Sans', sans-serif",fontSize:11,fontWeight:700,cursor:"pointer" }}>{fcEdit?"✓ Done editing":"✎ Edit values"}</button> : <span/>}
           <button onClick={()=>setScForm({ name:"",type:"revenue",amount:2000,startMo:cm,duration:0 })} style={{ background:P.a,color:P.bg,border:"none",borderRadius:6,padding:"8px 14px",fontFamily:"'DM Sans', sans-serif",fontSize:11,fontWeight:700,cursor:"pointer" }}>+ Add Scenario</button>
         </div>
 
@@ -297,6 +279,7 @@ export default function App() {
           </div>
         )}
 
+        {fcEdit ? <ForecastEditor d={d} saved={saved} save={save} /> : (<>
         <Lbl>Cash Flow (Rolling 13-Month)</Lbl>
         <div style={{ overflowX:"auto",marginBottom:20 }}>
           <table style={{ width:"100%",borderCollapse:"collapse",fontSize:12 }}>
@@ -390,6 +373,7 @@ export default function App() {
             </tbody>
           </table>
         </div>
+        </>)}
       </>)}
 
       {/* ===================== CLIENTS (Paul-only reference list) ===================== */}

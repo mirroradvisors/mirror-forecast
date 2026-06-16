@@ -50,7 +50,7 @@ export function decompose(d, now = new Date()) {
       (sc.paymentSchedule || []).forEach((p, j) => rows.payment_schedule.push({ client_id: c.id, pos: j, due_date: p.dueDate, amount: p.amount, paid: !!p.paid, paid_date: orNull(p.paidDate), note: p.note || '', status: freezeStatus(p, now) }));
     }
     const zc = c.zohoCommission;
-    if (zc) rows.zoho_commissions.push({ client_id: c.id, zoho_product: zc.zohoProduct, licenses: zc.licenses || 0, frequency: zc.frequency, monthly_amount: zc.monthlyAmount || 0, annual_amount: zc.annualAmount || 0, renewal_date: orNull(zc.renewalDate), renewal_day: orNull(zc.renewalDay), status: zc.status, in_forecast: zc.inForecast !== false, note: zc.note || '' });
+    if (zc) rows.zoho_commissions.push({ client_id: c.id, zoho_product: zc.zohoProduct, licenses: zc.licenses || 0, frequency: zc.frequency, monthly_amount: zc.monthlyAmount || 0, annual_amount: zc.annualAmount || 0, renewal_date: orNull(zc.renewalDate), renewal_day: orNull(zc.renewalDay), status: zc.status, in_forecast: zc.inForecast !== false, note: zc.note || '', zoho_subscription_id: orNull(zc.zohoSubscriptionId), zoho_customer_id: orNull(zc.zohoCustomerId), zoho_synced_at: orNull(zc.zohoSyncedAt) });
   });
   rows.scenarios = (d.scenarios || []).map((s, i) => ({ id: s.id, pos: i, name: s.name, type: s.type, amount: s.amount, start_mo: s.startMo || 0, duration: s.duration || 0, on_flag: !!s.on }));
   rows.actuals = Object.entries(d.actuals || {}).map(([k, a]) => ({ month_idx: +k, closing_bal: orNull(a.closingBal), total_in: orNull(a.totalIn), total_out: orNull(a.totalOut), chase_in: orNull(a.chaseIn), chase_out: orNull(a.chaseOut), stripe_in: orNull(a.stripeIn), stripe_payout: orNull(a.stripePayout), stripe_loan: orNull(a.stripeLoan), wise_out: orNull(a.wiseOut), wise_fees: orNull(a.wiseFees), cc_spend: orNull(a.ccSpend), cc_fees: orNull(a.ccFees), recon_date: orNull(a.reconDate) }));
@@ -95,6 +95,18 @@ export function reassemble(t) {
     cl: [...(t.clients || [])].sort(byPos).map((c) => {
       const sc = scByClient[c.id];
       const zc = zcByClient[c.id];
+      let zohoCommission = null;
+      if (zc) {
+        zohoCommission = {
+          zohoProduct: zc.zoho_product, licenses: zc.licenses, frequency: zc.frequency, monthlyAmount: num(zc.monthly_amount), annualAmount: num(zc.annual_amount),
+          renewalDate: orNull(zc.renewal_date), renewalDay: orNull(zc.renewal_day), status: zc.status, inForecast: zc.in_forecast !== false, note: zc.note || '',
+        };
+        // Sync-link fields: omit the key when null so rows never touched by the
+        // Zoho sync round-trip byte-identical (matches tm[].startMo handling).
+        if (zc.zoho_subscription_id != null) zohoCommission.zohoSubscriptionId = zc.zoho_subscription_id;
+        if (zc.zoho_customer_id != null) zohoCommission.zohoCustomerId = zc.zoho_customer_id;
+        if (zc.zoho_synced_at != null) zohoCommission.zohoSyncedAt = zc.zoho_synced_at;
+      }
       return {
         id: c.id, nm: c.nm, email: orNull(c.email), notes: c.notes || '',
         serviceContract: sc ? {
@@ -102,10 +114,7 @@ export function reassemble(t) {
           startDate: orNull(sc.start_date), endDate: orNull(sc.end_date), status: sc.status, inForecast: sc.in_forecast !== false,
           paymentSchedule: (psByClient[c.id] || []).slice().sort(byPos).map((p) => ({ dueDate: p.due_date, amount: num(p.amount), paid: !!p.paid, paidDate: orNull(p.paid_date), note: p.note || '', status: p.status })),
         } : null,
-        zohoCommission: zc ? {
-          zohoProduct: zc.zoho_product, licenses: zc.licenses, frequency: zc.frequency, monthlyAmount: num(zc.monthly_amount), annualAmount: num(zc.annual_amount),
-          renewalDate: orNull(zc.renewal_date), renewalDay: orNull(zc.renewal_day), status: zc.status, inForecast: zc.in_forecast !== false, note: zc.note || '',
-        } : null,
+        zohoCommission,
         lastEditedAt: orNull(c.last_edited_at), lastEditedBy: orNull(c.last_edited_by),
       };
     }),
