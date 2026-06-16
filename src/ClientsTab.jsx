@@ -6,6 +6,7 @@
 // the draft `d` and persist via the SaveBar/⌘S. Forecast math is untouched.
 
 import React, { useState, useMemo } from "react";
+import ZohoSyncPanel from "./ZohoSyncPanel.jsx";
 
 // Spec palette — scoped to this tab; intentionally not folded into P.
 const T = {
@@ -457,6 +458,7 @@ export default function ClientsTab({ d, save, isAdmin }) {
   const [filter, setFilter] = useState("all");      // all | service | zoho
   const [sortBy, setSortBy] = useState("value");    // value | zoho
   const [selectedId, setSelectedId] = useState(null);
+  const [showSync, setShowSync] = useState(false);
 
   // Admin edits buffer into the draft `d` (replace the edited client by id);
   // the global SaveBar/⌘S persists — cl changes route through the atomic RPC.
@@ -508,14 +510,23 @@ export default function ClientsTab({ d, save, isAdmin }) {
   return (
     <div style={{ color: T.txt, fontFamily: FONT_SANS }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: T.txt }}>
-          Clients
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: T.txt }}>
+            Clients
+          </div>
+          <div style={{ fontSize: 12, color: T.txtMuted, marginTop: 4 }}>
+            {enriched.length} active · service + Zoho licensing
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: T.txtMuted, marginTop: 4 }}>
-          {enriched.length} active · service + Zoho licensing
-        </div>
+        {isAdmin && (
+          <button onClick={() => setShowSync(v => !v)} style={{ background: showSync ? T.surfaceAlt : "transparent", color: showSync ? T.txt : T.txtMuted, border: `1px solid ${T.border}`, borderRadius: 6, padding: "8px 14px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT_SANS, whiteSpace: "nowrap" }}>
+            {showSync ? "Hide Zoho sync" : "⟳ Sync from Zoho"}
+          </button>
+        )}
       </div>
+
+      {isAdmin && showSync && <ZohoSyncPanel d={d} save={save} onClose={() => setShowSync(false)} />}
 
       {/* Filter + sort */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18, flexWrap: "wrap" }}>
