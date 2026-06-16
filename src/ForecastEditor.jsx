@@ -19,6 +19,8 @@ const moLabel = (i) => (i < 12 ? MO[i] : `${MO[i % 12]}'${String(BASE_YEAR + Mat
 
 const mono = "'JetBrains Mono', monospace";
 const sans = "'DM Sans', sans-serif";
+const LOC_NAME = { US: "United States", PH: "Philippines", IN: "India" };
+const locOrder = (locs) => [...locs].sort((a, b) => { const p = ["US", "PH", "IN"]; return ((p.indexOf(a) + 1 || 99) - (p.indexOf(b) + 1 || 99)) || a.localeCompare(b); });
 
 // One editable month cell. `sign` -1 => stored negative, displayed positive.
 function NumCell({ value, sign, changed, isCurrent, onCommit }) {
@@ -26,6 +28,7 @@ function NumCell({ value, sign, changed, isCurrent, onCommit }) {
   return (
     <td style={{ padding: "2px 2px", background: isCurrent ? P.bB : (changed ? P.aB : "transparent") }}>
       <EditableNumber
+        live
         value={shown}
         onCommit={(n) => onCommit(sign < 0 ? -Math.abs(n) : n)}
         style={{
@@ -149,7 +152,7 @@ export default function ForecastEditor({ d, saved, save }) {
 
   // Derived (read-only) rows for context.
   const derivedRev = c.rvDerived.im.map((_, i) => c.rvDerived.im[i] + c.rvDerived.za[i] + c.rvDerived.zm[i] + c.rvDerived.ot[i]);
-  const payroll = c.us.map((_, i) => c.us[i] + c.ph[i] + c.ind[i]);
+  const payLocs = locOrder(Object.keys(c.payroll || {}));
 
   const sv = saved || d;
 
@@ -171,7 +174,7 @@ export default function ForecastEditor({ d, saved, save }) {
   const addBtn = (onClick, text) => <button onClick={onClick} style={{ marginLeft: 10, background: "transparent", color: P.b, border: `1px solid ${P.bd}`, borderRadius: 5, padding: "2px 8px", fontSize: 10, cursor: "pointer", fontFamily: sans, fontWeight: 600 }}>{text}</button>;
 
   return (
-    <div>
+    <div style={{ paddingBottom: 72 }}>
       {/* Impact summary */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
         <Impact label="Baseline Runway" savedVal={runSaved} draftVal={runDraft} isMoney={false} suffix=" mo" colorFor={(v) => (v >= 9 ? P.g : v >= 6 ? P.a : P.r)} />
@@ -183,7 +186,7 @@ export default function ForecastEditor({ d, saved, save }) {
       {/* Opening balance */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <span style={{ fontSize: 11, color: P.td, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600, fontFamily: sans }}>Opening Balance (Jan 2026)</span>
-        <EditableNumber value={d.openBal} onCommit={setOpenBal}
+        <EditableNumber live value={d.openBal} onCommit={setOpenBal}
           style={{ width: 120, textAlign: "right", background: d.openBal !== (sv.openBal) ? `${P.a}14` : P.c2, border: `1px solid ${d.openBal !== sv.openBal ? `${P.a}88` : P.bd}`, color: P.tx, borderRadius: 4, padding: "5px 8px", fontFamily: mono, fontSize: 12 }} />
         <span style={{ fontSize: 10, color: P.td, fontStyle: "italic" }}>shifts the whole balance curve</span>
       </div>
@@ -202,7 +205,7 @@ export default function ForecastEditor({ d, saved, save }) {
                 <button onClick={() => rmSub(i)} title="Remove" style={{ background: "transparent", border: "none", color: P.rM, cursor: "pointer", fontSize: 14 }}>×</button>
                 <input value={s.n} onChange={(e) => updSub(i, { n: e.target.value })} style={{ flex: 1, background: "transparent", border: "none", borderBottom: `1px dashed ${P.bd}`, color: P.tx, fontFamily: sans, fontSize: 12 }} />
                 <span style={{ fontSize: 10, color: P.td }}>$/mo</span>
-                <EditableNumber value={s.a} onCommit={(n) => updSub(i, { a: Math.abs(n) })} style={{ width: 80, textAlign: "right", background: P.c2, border: `1px solid ${P.bd}`, color: P.r, borderRadius: 4, padding: "4px 6px", fontFamily: mono, fontSize: 11 }} />
+                <EditableNumber live value={s.a} onCommit={(n) => updSub(i, { a: Math.abs(n) })} style={{ width: 80, textAlign: "right", background: P.c2, border: `1px solid ${P.bd}`, color: P.r, borderRadius: 4, padding: "4px 6px", fontFamily: mono, fontSize: 11 }} />
                 <span style={{ fontSize: 10, color: P.td }}>start</span>
                 <select value={s.s ?? ""} onChange={(e) => updSub(i, { s: e.target.value === "" ? undefined : +e.target.value })} style={sel}>
                   <option value="">Jan'26</option>{Array.from({ length: N }, (_, m) => <option key={m} value={m}>{moLabel(m)}</option>)}
@@ -217,14 +220,14 @@ export default function ForecastEditor({ d, saved, save }) {
         </div>
       </div>
 
-      {/* Month grid for vector rows */}
-      <div style={{ overflowX: "auto", border: `1px solid ${P.bd}`, borderRadius: 8 }}>
+      {/* Month grid — scrolls both axes; header row + first column stay pinned. */}
+      <div style={{ maxHeight: "62vh", overflow: "auto", border: `1px solid ${P.bd}`, borderRadius: 8 }}>
         <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr>
-              <th style={{ ...th, textAlign: "left", position: "sticky", left: 0, background: P.bg, zIndex: 2, minWidth: 150 }}>Line</th>
-              {Array.from({ length: N }, (_, i) => <th key={i} style={{ ...th, background: i === cm ? P.bB : "transparent", color: i === cm ? P.b : P.td }}>{moLabel(i)}</th>)}
-              <th style={th}>Total</th>
+              <th style={{ ...th, textAlign: "left", position: "sticky", top: 0, left: 0, background: P.bg, zIndex: 3, minWidth: 150 }}>Line</th>
+              {Array.from({ length: N }, (_, i) => <th key={i} style={{ ...th, position: "sticky", top: 0, background: P.bg, zIndex: 2, color: i === cm ? P.b : P.td, fontWeight: i === cm ? 700 : 600 }}>{moLabel(i)}</th>)}
+              <th style={{ ...th, position: "sticky", top: 0, background: P.bg, zIndex: 2 }}>Total</th>
             </tr>
           </thead>
           <tbody>
@@ -248,7 +251,7 @@ export default function ForecastEditor({ d, saved, save }) {
             <VectorRow label="Emp Taxes" values={d.et} savedValues={sv.et} N={N} cm={cm} onChange={(next) => setVec("et", next)} />
             <VectorRow label="ADP Fees" values={d.af} savedValues={sv.af} N={N} cm={cm} onChange={(next) => setVec("af", next)} />
             <VectorRow label="Wise Fees" values={d.wf} savedValues={sv.wf} N={N} cm={cm} onChange={(next) => setVec("wf", next)} />
-            <ReadRow label="Payroll (US · PH · IN)" note="↗ Payroll tab" vals={payroll} N={N} cm={cm} color={P.td} />
+            {payLocs.map((loc) => <ReadRow key={loc} label={`Payroll · ${LOC_NAME[loc] || loc}`} note="↗ Payroll tab" vals={c.payroll[loc]} N={N} cm={cm} color={P.td} />)}
 
             <GroupHead label="Result" N={N} />
             <ReadRow label="Net Flow" vals={c.rvBase.map((v, i) => v + c.exBase[i])} N={N} cm={cm} color={P.tm} bold />
