@@ -261,8 +261,24 @@ export function compute(d) {
   const rvT = rv.map((v, i) => v + scRv[i]);
   const exT = ex.map((v, i) => v + scEx[i]);
   const nt = idxRange(N).map(i => rvT[i] + exT[i]);
+
+  // === Forecast lock ===
+  // A reconciled, COMPLETE month (a bank statement covered its full span — set by
+  // the Actuals/Reconcile flow) anchors the balance curve to the real closing
+  // balance; later months project forward from that anchor. Months without a
+  // complete actual project as usual. Backward-compatible: pre-existing actuals
+  // entries lack `complete`, so they never lock (cashNow still drives the dashboard).
+  const actuals = d.actuals || {};
+  const lockedBal = (i) => {
+    const a = actuals[i];
+    return a && a.complete && a.closingBal != null ? a.closingBal : null;
+  };
   const bl = [];
-  nt.forEach((n, i) => bl.push(i === 0 ? d.openBal + n : bl[i - 1] + n));
+  for (let i = 0; i < N; i++) {
+    const locked = lockedBal(i);
+    if (locked != null) bl.push(locked);
+    else bl.push((i === 0 ? d.openBal : bl[i - 1]) + nt[i]);
+  }
 
   return {
     rv: rvT, rvBase: rv,

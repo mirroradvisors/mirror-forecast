@@ -53,7 +53,7 @@ export function decompose(d, now = new Date()) {
     if (zc) rows.zoho_commissions.push({ client_id: c.id, zoho_product: zc.zohoProduct, licenses: zc.licenses || 0, frequency: zc.frequency, monthly_amount: zc.monthlyAmount || 0, annual_amount: zc.annualAmount || 0, renewal_date: orNull(zc.renewalDate), renewal_day: orNull(zc.renewalDay), status: zc.status, in_forecast: zc.inForecast !== false, note: zc.note || '', zoho_subscription_id: orNull(zc.zohoSubscriptionId), zoho_customer_id: orNull(zc.zohoCustomerId), zoho_synced_at: orNull(zc.zohoSyncedAt) });
   });
   rows.scenarios = (d.scenarios || []).map((s, i) => ({ id: s.id, pos: i, name: s.name, type: s.type, amount: s.amount, start_mo: s.startMo || 0, duration: s.duration || 0, on_flag: !!s.on }));
-  rows.actuals = Object.entries(d.actuals || {}).map(([k, a]) => ({ month_idx: +k, closing_bal: orNull(a.closingBal), total_in: orNull(a.totalIn), total_out: orNull(a.totalOut), chase_in: orNull(a.chaseIn), chase_out: orNull(a.chaseOut), stripe_in: orNull(a.stripeIn), stripe_payout: orNull(a.stripePayout), stripe_loan: orNull(a.stripeLoan), wise_out: orNull(a.wiseOut), wise_fees: orNull(a.wiseFees), cc_spend: orNull(a.ccSpend), cc_fees: orNull(a.ccFees), recon_date: orNull(a.reconDate) }));
+  rows.actuals = Object.entries(d.actuals || {}).map(([k, a]) => ({ month_idx: +k, closing_bal: orNull(a.closingBal), total_in: orNull(a.totalIn), total_out: orNull(a.totalOut), chase_in: orNull(a.chaseIn), chase_out: orNull(a.chaseOut), stripe_in: orNull(a.stripeIn), stripe_payout: orNull(a.stripePayout), stripe_loan: orNull(a.stripeLoan), wise_out: orNull(a.wiseOut), wise_fees: orNull(a.wiseFees), cc_spend: orNull(a.ccSpend), cc_fees: orNull(a.ccFees), recon_date: orNull(a.reconDate), complete: !!a.complete }));
   return rows;
 }
 
@@ -122,7 +122,7 @@ export function reassemble(t) {
     actuals: Object.fromEntries((t.actuals || []).map((a) => [a.month_idx, {
       closingBal: num(a.closing_bal), totalIn: num(a.total_in), totalOut: num(a.total_out), chaseIn: num(a.chase_in), chaseOut: num(a.chase_out),
       stripeIn: num(a.stripe_in), stripePayout: num(a.stripe_payout), stripeLoan: num(a.stripe_loan), wiseOut: num(a.wise_out), wiseFees: num(a.wise_fees),
-      ccSpend: num(a.cc_spend), ccFees: num(a.cc_fees), reconDate: a.recon_date,
+      ccSpend: num(a.cc_spend), ccFees: num(a.cc_fees), reconDate: a.recon_date, complete: !!a.complete,
     }])),
   };
   return d;

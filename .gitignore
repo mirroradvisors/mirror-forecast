@@ -7,3 +7,6 @@ dist
 .env.*
 supabase-*.json
 scripts/zoho-sample.json
+
+# Real bank/Stripe statements — sensitive financial PII, never commit
+sample_statements/

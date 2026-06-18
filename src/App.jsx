@@ -7,6 +7,7 @@ import { Card, Lbl, Bdg, NumIn, Pie, XRow, Toast, SaveBar } from "./components.j
 import { useAuth } from "./AuthContext.jsx";
 import LoginPage from "./LoginPage.jsx";
 import Reconcile from "./Reconcile.jsx";
+import ActualsTab from "./ActualsTab.jsx";
 import ClientsTab from "./ClientsTab.jsx";
 import RunwayChart from "./RunwayChart.jsx";
 
@@ -40,7 +41,7 @@ export default function App() {
   // invoices in Zoho Books now. Anyone without admin or viewer role gets the
   // deprecated-account screen below; the tab list is uniform otherwise.
   const isIntern = !isAdmin && !isViewer;
-  const tabs = ["dashboard", "forecast", "clients", "payroll"];
+  const tabs = isAdmin ? ["dashboard", "forecast", "clients", "payroll", "actuals"] : ["dashboard", "forecast", "clients", "payroll"];
   useEffect(() => { if (!tabs.includes(tab)) setTab(tabs[0]); }, [tab]);
 
   // dirtyCount comes from useForecastState (drives the "N unsaved changes" pill).
@@ -446,6 +447,9 @@ export default function App() {
           );
         })}
       </>)}
+
+      {/* ===================== ACTUALS (statement upload → reconcile → forecast lock) ===================== */}
+      {tab==="actuals"&&isAdmin&&(<ActualsTab d={d} save={save} isAdmin={isAdmin} showToast={showToast} />)}
 
       </div>
 
